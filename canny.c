@@ -1,6 +1,6 @@
 // Thomas Wilson
 // gcc canny.c -o canny -lm
-// canny.exe garb34.pgm output1.pgm ignore.pgm 1 0
+// canny.exe garb34.pgm output1.pgm output2.pgm 1 0
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
@@ -14,6 +14,7 @@ int edgeflag[PICSIZE][PICSIZE];
 double maskx[MAXMASK][MAXMASK];
 double masky[MAXMASK][MAXMASK];
 double ival[PICSIZE][PICSIZE];
+unsigned char cand[PICSIZE][PICSIZE];
 
 int main(int argc, char **argv) {
     int i,j,p,q,s,t,mr,centx,centy;
@@ -58,8 +59,8 @@ int main(int argc, char **argv) {
 
     for (p = -mr; p <= mr; p++) {
         for (q = -mr; q <= mr; q++) {
-            maskvalx = (-(double)p / (sig*sig)) * exp(-(double)(p*p + q*q) / (2.0 * sig * sig));
-            maskvaly = (-(double)q / (sig*sig)) * exp(-(double)(p*p + q*q) / (2.0 * sig * sig));
+            maskvalx = (-(double)q / (sig*sig)) * exp(-(double)(p*p + q*q) / (2.0 * sig * sig));
+            maskvaly = (-(double)p / (sig*sig)) * exp(-(double)(p*p + q*q) / (2.0 * sig * sig));
 
             (maskx[p+centy][q+centx]) = maskvalx;
             (masky[p+centy][q+centx]) = maskvaly;
@@ -90,15 +91,63 @@ int main(int argc, char **argv) {
             }
         }
     }
+
+
+    for (i = 0; i < PICSIZE; i++) {
+        for (j = 0; j < PICSIZE; j++) {
+            cand[i][j] = 0;
+        }
+    }
+        
+    for (i = mr; i < 256 - mr; i++) {
+        for (j = mr; j < 256 - mr; j++) {
+            
+            double gx = outpicx[i][j];
+
+            if (gx == 0.0) {
+                gx = 0.00001;
+            }
+
+            double slope = outpicy[i][j]/gx;
+
+            if (slope <= 0.4142 && slope > -0.4142) {
+                if (ival[i][j] > ival[i][j-1] && ival[i][j] > ival[i][j+1]) {
+                    cand[i][j] = 255;
+                }
+            } else if (slope <= 2.4142 && slope > .4142) {
+                if (ival[i][j] > ival[i-1][j-1] && ival[i][j] > ival[i+1][j+1]) {
+                    cand[i][j] = 255;
+                }
+            } else if (slope <= -0.4142 && slope > -2.4142) {
+                if (ival[i][j] > ival[i+1][j-1] && ival[i][j] > ival[i-1][j+1]) {
+                    cand[i][j] = 255;
+                }
+            } else {
+                if (ival[i][j] > ival[i-1][j] && ival[i][j] > ival[i+1][j]) {
+                    cand[i][j] = 255;
+                }
+            }
+        }
+    }
     
     fprintf(fo1, "P5\n");
     fprintf(fo1, "%d %d\n", PICSIZE, PICSIZE);
     fprintf(fo1, "255\n");
 
+    fprintf(fo2, "P5\n");
+    fprintf(fo2, "%d %d\n", PICSIZE, PICSIZE);
+    fprintf(fo2, "255\n");
+
     for (i = 0; i < 256; i++) {
         for (j = 0; j < 256; j++) {
             ival[i][j] = (ival[i][j] / maxival) * 255;            
-            fprintf(fo1,"%c",(char)((int)(ival[i][j])));    
+            fprintf(fo1,"%c",(char)((int)(ival[i][j])));
+            fprintf(fo2,"%c",(char)((int)(cand[i][j])));
         }
     }
+
+    fclose(fp1);
+    fclose(fo1);
+    fclose(fo2);
+    return 0;
 }
