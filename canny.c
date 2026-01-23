@@ -1,6 +1,6 @@
 // Thomas Wilson
 // gcc canny.c -o canny -lm
-// canny.exe garb34.pgm output1.pgm output2.pgm 1 0
+// canny.exe garb34.pgm output1.pgm output2.pgm output3.pgm 1 0
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
@@ -15,12 +15,17 @@ double maskx[MAXMASK][MAXMASK];
 double masky[MAXMASK][MAXMASK];
 double ival[PICSIZE][PICSIZE];
 unsigned char cand[PICSIZE][PICSIZE];
+unsigned char finaledge[PICSIZE][PICSIZE];
+unsigned char peaks[PICSIZE][PICSIZE];
 
 int main(int argc, char **argv) {
     int i,j,p,q,s,t,mr,centx,centy;
     double  maskvalx,maskvaly,sumx,sumy,sig,maxival,minival,maxval,ZEROTOL;
-    FILE *fo1, *fo2,*fp1;
+    FILE *fo1, *fo2, *fo3, *fp1;
     char *foobar;
+
+    double HI = 100;
+    double LO = 35;
 
     argc--; argv++;
     foobar = *argv;
@@ -33,6 +38,10 @@ int main(int argc, char **argv) {
     argc--; argv++;
     foobar = *argv;
     fo2=fopen(foobar,"wb");
+
+    argc--; argv++;
+    foobar = *argv;
+    fo3=fopen(foobar,"wb");
 
     argc--; argv++;
     foobar = *argv;
@@ -92,6 +101,12 @@ int main(int argc, char **argv) {
         }
     }
 
+    for (i = mr; i < 256 - mr; i++) {
+      for (j = mr; j < 256 - mr; j++) {
+        ival[i][j] = (ival[i][j] / maxival) * 255.0;
+      }
+   }
+
 
     for (i = 0; i < PICSIZE; i++) {
         for (j = 0; j < PICSIZE; j++) {
@@ -129,25 +144,70 @@ int main(int argc, char **argv) {
             }
         }
     }
-    
-    fprintf(fo1, "P5\n");
-    fprintf(fo1, "%d %d\n", PICSIZE, PICSIZE);
-    fprintf(fo1, "255\n");
 
-    fprintf(fo2, "P5\n");
-    fprintf(fo2, "%d %d\n", PICSIZE, PICSIZE);
-    fprintf(fo2, "255\n");
+    for (i=0;i<256;i++)
+      for (j=0;j<256;j++)
+         peaks[i][j] = cand[i][j];
+
+
+    for (i = 0; i < PICSIZE; i++) {
+      for (j = 0; j < PICSIZE; j++) {
+        finaledge[i][j] = 0;
+      }
+    }
+
+    for (i = mr; i < 256 - mr; i++) {
+      for (j = mr; j < 256 - mr; j++) {
+        if (cand[i][j] == 255) {
+            if (ival[i][j] > HI) {
+                cand[i][j] = 0;
+                finaledge[i][j] = 255;
+            }
+            else if (ival[i][j] < LO) {
+                cand[i][j] = 0;
+                finaledge[i][j] = 0;
+            }
+         }
+      }
+   }
+
+   int moretodo = 1;
+
+   while (moretodo) {
+   moretodo = 0;
+      for (i = mr; i < 256 - mr; i++) {
+         for (j = mr; j < 256 - mr; j++) {
+            if (cand[i][j] == 255) {
+               for (p = -1; p <= 1; p++) {
+                  for (q = -1; q <= 1; q++) {
+                     if (finaledge[i+p][j+q] == 255) {
+                        cand[i][j] = 0;
+                        finaledge[i][j] = 255;
+                        moretodo = 1;
+                     }
+                  }
+               }
+            }
+         }
+      }
+   }
+    
+   fprintf(fo1, "P5\n%d %d\n255\n", PICSIZE, PICSIZE);
+   fprintf(fo2, "P5\n%d %d\n255\n", PICSIZE, PICSIZE);
+   fprintf(fo3, "P5\n%d %d\n255\n", PICSIZE, PICSIZE);
 
     for (i = 0; i < 256; i++) {
         for (j = 0; j < 256; j++) {
-            ival[i][j] = (ival[i][j] / maxival) * 255;            
+            // ival[i][j] = (ival[i][j] / maxival) * 255;            
             fprintf(fo1,"%c",(char)((int)(ival[i][j])));
-            fprintf(fo2,"%c",(char)((int)(cand[i][j])));
+            fprintf(fo2,"%c",(char)((int)(peaks[i][j])));
+            fprintf(fo3, "%c", (unsigned char)finaledge[i][j]);
         }
     }
 
     fclose(fp1);
     fclose(fo1);
     fclose(fo2);
+    fclose(fo3);
     return 0;
 }
